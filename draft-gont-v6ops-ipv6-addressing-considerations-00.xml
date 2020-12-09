@@ -1,0 +1,914 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE rfc SYSTEM "rfc2629.dtd">
+
+<?xml-stylesheet type='text/xsl' href='rfc2629.xslt' ?>
+
+<?rfc toc="yes" ?>
+<?rfc symrefs="yes" ?>
+<?rfc strict="no" ?>
+
+<rfc 
+	ipr="noDerivativesTrust200902"
+	category="info"
+	docName="draft-gont-v6ops-ipv6-addressing-considerations-00">
+  <front>
+    <title abbrev="IPv6 Addressing Considerations">IPv6 Addressing Considerations</title>
+
+    <author fullname="Fernando Gont" initials="F." surname="Gont">
+      <organization abbrev="SI6 Networks">SI6 Networks</organization>
+
+      <address>
+        <postal>
+          <street>Evaristo Carriego 2644</street>
+          <code>1706</code>
+          <city>Haedo</city>
+          <region>Provincia de Buenos Aires</region>
+          <country>Argentina</country>
+        </postal>
+<!--
+        <phone>+54 11 4650 8472</phone>
+-->
+        <email>fgont@si6networks.com</email>
+        <uri>https://www.si6networks.com</uri>
+      </address>
+    </author>
+
+
+    <author fullname="Guillermo Gont" initials="G.G." surname="Gont">
+      <!-- abbrev not needed but can be used for the header
+         if the full organization name is too long -->
+
+      <organization abbrev="SI6 Networks">SI6 Networks</organization>
+
+      <address>
+        <postal>
+          <!-- I've omitted my street address here -->
+
+          <street>Evaristo Carriego 2644</street>
+
+          <code>1706</code>
+
+          <city>Haedo</city>
+
+          <region>Provincia de Buenos Aires</region>
+
+          <country>Argentina</country>
+        </postal>
+
+        <email>ggont@si6networks.com</email>
+
+        <uri>https://www.si6networks.com</uri>
+      </address>
+    </author>	
+
+
+
+    <date/>
+
+
+    <area>Operations and Management</area>
+    <workgroup>IPv6 Operations Working Group (v6ops)</workgroup>
+
+
+
+    <abstract>
+    <t>
+IPv6 addresses can differ in a number of properties, such as scope, stability, and intended usage type. This document analyzes the impact of these properties on aspects such as security, privacy, interoperability, and network operations. Additionally, it identifies challenges and gaps that currently prevent systems and applications from leveraging the increased flexibility and availability of IPv6 addresses. 
+</t>
+    </abstract>
+  </front>
+
+  <middle>
+  
+<section title="Introduction" anchor="intro">
+<t>IPv6 addresses can differ in a number of properties, such as address scope (e.g. link-local vs. global), stability (e.g. stable addresses vs. temporary addresses), and intended usage type (outgoing communications vs. incoming communications). While often overlooked, these properties have direct impact on areas such as security, privacy, interoperability, and network operations.
+</t>
+
+<t>IPv6 hosts typically configure addresses based on local system policy, which tends to be static and irrespective of the specific network the host attaches to. For example, most IPv6 host implementations configure one link-local address for each network interface, and one stable and one (or more) temporary addresses per each autoconfiguration prefix advertised via Stateless Address Auto-configuration (SLAAC) <xref target="RFC4862"/> for each network interface. Additionally, in scenarios where the network provides address configuration via both SLAAC and DHCPv6, host typically configure addresses using both protocols; as a result, hosts will typically add one DHPv6-leased address per local prefix to the set of configured addresses.</t>
+
+<t>Each application on a given system could have its own set of requirements or expectations for the properties of the underlying IPv6 addresses. For example, an application meaning to offer a public service might expect to employ addresses that are both globally-reachable <xref target="RFC8190"/> and stable <xref target="RFC7721"/> <xref target="RFC8064"/>, while a privacy-sensible client application might prefer short-lived temporary addresses <xref target="I-D.ietf-6man-rfc4941bis"/>, or might even expect to employ single-use ("throw-away") IPv6 addresses when connecting to public servers. However, the subtleties associated with IPv6 addresses are often ignored or overlooked by application programmers and network administrators, and thus hosts could end up making suboptimal choices when configuring addresses, while applications could fail to signal their requirements and preferences to the underlying system. Additionally, limitations in the current Application Programming Interfaces (APIs) along with implementation constraints in some network devices can also limit the ability of applications to leverage the increased flexibility of IPv6 addressing. This not only results in a failure to leverage the increased addressing flexibility provided by IPv6 but, at times, also in unintended consequences.</t>
+<!--
+Additionally, current APIs (such as the BSD Sockets API) tend to be very limited in the amount of control they give applications to select the most appropriate IPv6 addresses for a given task, thus limiting a programmer's ability to leverage IPv6 address availability and properties.
+-->
+
+<t>This document identifies a set of properties that can be associated with IPv6 addresses (such as scope and stability), and analyzes the impact of these properties on areas ranging from security and privacy to network operations, with the goal of providing guidance about IPv6 address usage, and identifying challenges and gaps that currently prevent systems and applications from leveraging the increased flexibility and availability of IPv6 addresses.</t>
+
+</section>
+
+
+<section title="Terminology" anchor="terminology">
+
+<t>This document employs the definitions of "public address", "stable address", and "temporary address" from Section 2 of <xref target="RFC7721"/>.</t>
+
+<t>This document employs the definition of "globally reachable" from Section 2.1 of <xref target="RFC8190"/>.</t>
+
+<t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
+      "MAY", and "OPTIONAL" in this document are to be interpreted as
+      described in BCP 14 <xref target="RFC2119"/> <xref target="RFC8174"/> when, and only when, they
+      appear in all capitals, as shown here.
+</t>
+</section>
+
+
+<section title="Conventions" anchor="background">
+
+<section title="Legacy Specifications and Schemes">
+<t>IPv6 SLAAC has traditionally employed schemes for generating Interface Identifiers (IIDs) that have negatively affected the security and privacy properties of IPv6 addresses. For example, IPv6 SLAAC originally generated stable addresses by embedding the underlying link-layer address in the IPv6 Interface Identifier (IID), thus negatively affecting the security and privacy properties of IPv6 addresses <xref target="RFC7721"/> <xref target="RFC7707"/>. Similarly, IPv6 temporary addresses <xref target="RFC4941"/> reused the same randomized IID for multiple auto-configuration prefixes <xref target="RFC4941"/>, thus allowing for network activity correlation across different addresses of the same host.</t>
+
+<t>These schemes have become formally superseded by other schemes, such as <xref target="RFC7217"/> and <xref target="I-D.ietf-6man-rfc4941bis"/>, that mitigate the issues present in the legacy schemes. Therefore, this document assumes that implementations generate their IIDs according to thees updated and improved schemes, and does not discuss any implications arising from legacy IID generation algorithms.
+</t>
+</section>
+
+<section title="Unique Local IPv6 Unicast Addresses (ULAs)" anchor="ulas">
+<t>Unique Local IPv6 Unicast Addresses (ULAs) are considered to have global scope, but non-global reachability. However, the only reasons for which these addresses are considered to have "global scope" are:
+<list style="symbols">
+<t>given two different networks that employ ULAs, it's unlikely that they will employ the same ULA prefix</t>
+<t>the ULA address block formally belongs to the Global Unicast Address (GUA) address block</t>
+</list>
+</t>
+
+<t>
+The ULA prefixes of two different networks that e.g. need to be merged will be (statistically) different *if* sites generate their ULA prefixes following the recommendations in <xref target="RFC4193"/> -- i.e., randomize the ULA prefix. However, this is not enforceable, and there exists anecdotal evidence that some sites employ non-randomized ULA prefixes, possibly in the hope of employing prefixes that are easier to express via the IPv6 address notation (e.g. fd00::/48).
+</t>
+
+<t>
+The ULA address block has been carved out of the GUA address block, without updating the IPv6 Addressing Architecture (<xref target="RFC4291"/>) to define the ULA address block as a different address type (e.g. "IPv6 private address space"). However, <xref target="RFC4193"/> notes that ULAs are not expected to be globally-routable, and the ULA prefix is commonly included in "bogon filters" typically enforced by network operators and administrators, thus limiting the reachability of these addresses.
+</t>
+
+<t>Therefore, ULAs are not globally meaningful and thus, for most (if not all) practical purposes, ULAs can be considered to have non-global scope. For this reason, ULAs are treated as non-global scope addresses, even when from a specifications point of view they have global scope.</t>
+
+</section>
+
+
+</section>
+
+<section title="IPv6 Address Properties" anchor="address-considerations">
+
+<t>There are, at least, four properties that can be associated with every IPv6 address:
+
+<list style="symbols">
+<t>Scope</t>
+<t>Reachability</t>
+<t>Stability</t>
+<!--
+<t>Intended usage type</t> -->
+<t>Provider Dependency</t>
+</list>
+</t>
+
+
+<t>The address scope essentially represents the area of the network where an address can be expected to uniquely identify a system or set of systems, or conceptually, the area of the network where an given address is meaningful. For example, link-local addresses are only meaningful within a given network link, and are expected to be unique only within such network link. </t>
+
+<t>Address reachability represents the area of the network, where an address can be expected to be used for receiving and transmitting packets. Besides the semantics of specific address types, reachability can be affected by network devices: for example, Customer Edge Routers (CE Routers) that enforce a filtering policy of "only allowing outgoing communications" can render otherwise globally reachable addresses as "unreachable from the public Internet, unless communication is initiated from the customer's network".</t>
+
+
+ 
+<t>The stability of an address is associated with the invariance of an address over time. For example, a manually-configured address will typically remain stable while the node remains attached to the same subnet, while a temporary address will, by definition, change over time. While address stability does depend on the inherent properties of a given address (e.g. stable vs. temporary), it also depends on other factors, such as provider dependency: if a network employs a prefix that is assigned/leased by an upstream provider, then the overall stability of the addresses will also depend on the stability of the network prefix leased/assigned by the upstream. <!--Finally, temporary addresses <ref target="RFC4941"/> <xref target="I-D.ietf-6man-rfc4941bis"/> are specifically meant to be employed for "outgoing communications", and typically employed along with stable addresses, that in such cases are meant only for incoming communications. --></t>
+
+
+<!--
+<t>IPv6 hosts typically automatically-configure (whether via SLAAC or via DHCPv6) both stable <xref target="RFC8064"/> and temporary <xref target="RFC4941"/> addresses. When both stable and temporary addresses are configured, stable addresses are typically employed for incoming (server-like) communications, while temporary addresses are typically employed for outgoing (client-like) communications.
+</t>
+-->
+
+<t>Provider-dependency is typically discussed in the context of Global Unicast Addresses, where the address space may be allocated by an Internet Service Provider (ISP) (and hence "provider aggregatable") or by a Regional Internet Registry (RIR) (and hence "provider independent"). However, this document considers "provider dependency" in a more general way: "provider aggregatable" address space is assigned or leased by the upstream (which may or may not be an ISP) from the provider's address space, and thus has a topological relationship with the upstream's address space, whereas "provider independent" address space is "owned" by the network in question and does not necessarily have a topological relationship with the upstream.</t>
+
+
+
+
+<!--
+<t>
+<xref target="scope-considerations"/>, 
+<xref target="stability-considerations"/>, and <xref target="usage-type-considerations"/> 
+discuss the security and privacy implications (and associated tradeoffs) of the scope, 
+stability and usage type properties of IPv6 addresses, respectively.
+</t>
+-->
+<!--
+<t>Additionally, IPv6 address usage has a number of operational considerations; these are discussed n <xref target="operational-considerations"/>.
+</t>
+-->
+
+<section title="Address Scope Considerations" anchor="scope-considerations">
+
+<t>The IPv6 address scope <xref target="RFC4007"/> has a direct implication on address reachability: the address scope essentially limits reachability. For example, addresses that have a non-global scope are not, in principle, globally reachable.
+<list style="hanging">
+<t hangText="NOTE:"><vspace blankLines="0"/>The assumption becomes invalid if Network Prefix Translation (NPT) <xref target="RFC6296"/> is employed, though.</t>
+</list>
+</t>
+<t>
+The IPv6 address scope can, in some scenarios, limit the attack exposure of a node as a result 
+of the implicit isolation provided by a non-global address scopes. For example, a node that 
+only employs link-local addresses will, in principle, only be exposed to attacks from other 
+nodes on the same local link. <!-- Unique Local Addresses (ULAs), while having a global scope (and hence expected to be globally unique), are not globally-reachable, and thus they provide address-based isolation as non-global addresses. -->
+</t>
+
+<t>The potential protection provided by a non-global-scope addresses should not be regarded as a 
+complete security strategy, but rather as a form of "prophylactic" security 
+(see <xref target="I-D.gont-opsawg-firewalls-analysis"/>).
+</t>
+
+<t>We note that non-global scope addresses are normally only of use for limited number of 
+applications/protocols that operate on a limited scope (e.g., mDNS), or deployments where the intended participants have been deployed in a limited area of the network topology (e.g., OpenSSH client and server attached to the same link, both employing link-local addresses).
+</t>
+
+
+<t>The address scope can at times be somewhat related with the provider dependency property. For example, link-local addresses are, by definition, provider independent. In the same light, a ULA prefix generated by a local router will be, by definition, provider independent. However, a router might also be leased an ULA sub-prefix from its upstream, in which case this prefix would be "provider dependent".
+</t>
+
+<!--
+
+<t>In some cases, the address scope may affect address stability. For example, a home network could internally employ both ULAs and GUAs, where the GUAs are configured from a prefix leased via DHCPv6 Prefix Delegation (DHCPv6-PD) <xref target="RFC8415"/>. If for some reason there was an outage involving the connection with the upstream ISP, the prefix lease time could eventually expire, and therefore addresses configured for such prefix would need to be invalidated. Similarly, if upon prefix lease expiration the ISP were to lease a new IPv6 prefix rather than renew the previously employed prefix, the network would need to be renumbered. On the other hand, ULA prefixes advertised by the CE Router will normally not require renewal from the ISP, since they are locally generated by the CE Router.
+<list style="hanging">
+<t hangText="NOTE:"><vspace blankLines="0"/>As noted above, while strictly speaking ULAs belong to the global unicast address space, they can be considered non-global addresses for all practical purposes.</t>
+</list>
+</t>
+
+<t>A discussion of ULA usage considerations can be found in 
+<xref target="I-D.ietf-v6ops-ula-usage-considerations"/>.</t>
+-->
+</section>
+
+
+<section title="Provider Dependency" anchor="dependency-considerations">
+<t>Provider-dependency is typically discussed in the context of Global Unicast Addresses, where the address space may be allocated by an Internet Service Provider (ISP) (and hence "provider agregatable") or by a Regional Internet Registry (RIR) (and hence "provider independent"). However, this document considers "provider dependency" in a more general way: "provider agregatable" address space is assigned or leased by the upstream (which may or may not be an ISP) from the provider's address space, and thus has a topological relationship with the upstream's address space, whereas "provider independent" address space is "owned" by the network in question and does not necessarily have a topological relationship with the upstream.</t>
+
+<t>An implicit consequence of PA address space is that its use is tied to the specific provider/upstream that has assigned/leased the address space. This means that multi-homing (employing the address space with multiple providers/upstreams) is not possible, and that a renumbering event at the upstream could lead to a renumbering event of the local network.
+</t>
+
+<t>As a result, provider-dependency can affect address stability, with PI address space generally having better stability properties. For example, a home network could internally employ both ULAs and GUAs, where a ULA prefix is locally generated by the Customer Edge Router (CE Router), and global prefix is leased by the ISP via DHCPv6 Prefix Delegation (DHCPv6-PD) <xref target="RFC8415"/>. If for some reason there was an outage involving the connection with the upstream ISP, the prefix lease time would eventually expire, and therefore addresses configured for such prefix would need to be invalidated. Similarly, if upon prefix lease expiration the ISP were to lease a new IPv6 prefix rather than renew the previously employed prefix, the network would need to be renumbered. On the other hand, ULA prefixes locally generated and advertised by the CE Router will not require renewal from the ISP, since they are locally generated by the CE Router.
+<list style="hanging">
+<t hangText="NOTE:"><vspace blankLines="0"/>As noted above, while strictly speaking ULAs belong to the global unicast address space, they can be considered non-global addresses for all practical purposes.</t>
+</list>
+</t>
+<!--
+<t>A discussion of ULA usage considerations can be found in 
+<xref target="I-D.ietf-v6ops-ula-usage-considerations"/>.</t>
+-->
+<t>Similarly, an organizational network that employs PI address space obtained from a RIR would be able to keep the same address space, even if the upstream network is renumbered.</t>
+
+
+<!--
+ORIGINAL
+
+<t>Provider-dependency is typically discussed in the context of Global Unicast Addresses: the Global Unicast Address Space can be categorized as either Provider-Aggregatable (PA) address space, or Provider-Aggregatable (PA) address space.</t>
+
+
+Provider-Aggregatable (PA) address space is typically an address block assigned by a Regional Internet Registry (RIR) to an Internet Service Provider (ISP), which in turn supplies parts of this address space to other organizations. Thus, the ISP can aggregate the address space of all such organizations into a single route advertisement.</t>
+<t>On the other hand, Provider-Aggregatable (PA) address space is typically an address block assigned by a RIR directly to an end-user organization.</t>
+
+<t>End-user organizations that employ PA space typically need to perform network renumbering when switching ISPs. On the other hand, end-user organizations employing PI space need not perform network renumbering, since the address space is assigned to the end-user organization itself, rather than to the ISP.
+</t>
+-->
+</section>
+
+
+<section title="Address Reachability" anchor="reachability">
+<t>Address reachability represents the area of the network (and the associated conditions), where an address can be expected to be used for receiving and transmitting packets. As noted in <xref target="scope-considerations"/>, the address scope has a direct implication on address reachability, since address reachability is limited to a subset of the address scope. For example, only global-scope addresses can be globally reachable.</t>
+
+<t>However, besides the reachability semantics of each address type, network filtering policies may also affect address reachability. For example, there is widespread deployment of Customer Edge Routers that implement a (stateful) filtering policy of "only allowing outgoing communications" -- mimicking the filtering policy enforced (as a side-effect) by IPv4 NATs. In such scenarios, even otherwise globally-reachable addresses become unreachable, unless:
+
+<list style="symbols">
+<t>communication is initiated from the internal network, or,</t>
+<t>the CE Router is manually configured override the default filtering policy, or,</t>
+<t>a technology to dynamically override the filtering policy (such as UPnP <xref target="UPnP"/>) is employed.</t>
+</list>
+</t>
+
+<t>Address reachability is what ultimately determines the application architecture that may be employed by an IPv6 node.
+<list style="hanging">
+<t hangText="NOTE:"><vspace blankLines="0"/>Ironically, an IPv6-only host (with global-scope addresses) attached to a home network where the CE Router "only allows outgoing communications" and does not implement a protocol like UPnP <xref target="UPnP"/>, will normally have a harder time using peer-to-peer (P2P) applications than an IPv4-only host (with a private address) attached to a home network where the CE Router employs NAT but implements a protocol like UPnP.
+</t>
+</list>
+</t>
+
+<t>Address reachability has a direct impact on security, since the ability to attack a system normally relies on the ability of the attacker to reach the system in the first place. Firewalls <xref target="I-D.gont-opsawg-firewalls-analysis"/> are, indeed, devices that are specifically devoted to administer address reachability.</t>
+
+</section>
+
+
+<section title="Address Stability Considerations" anchor="stability-considerations">
+<t>The stability of an address has two associated security/privacy implications:
+<list style="symbols">
+<t>Ability of an attacker to correlate network activity</t>
+<t>Exposure to attack</t>
+</list>
+
+</t>
+
+<t>
+For obvious reasons, an address that is employed for multiple communication instances 
+allows the aforementioned network activities to be correlated. The longer an address 
+is employed (i.e., the more stable it is), the longer such correlation will be possible. 
+In the worst-case scenario, a stable address that is employed for multiple communication 
+instances over time will allow all such activities to be correlated. On the other hand, 
+if a host were to generate (and eventually "throw away") one new address for each 
+communication instance (e.g., TCP connection), network activity correlation would be mitigated. 
+
+<list style="hanging">
+<t hangText="NOTE:"><vspace blankLines="0"/>The security and privacy implications of predictable addresses are discussed in <xref target="RFC7721"/> and <xref target="RFC7707"/>.
+</t>
+</list>
+</t>
+
+
+<t>Typically, when it comes to attack exposure, the longer an address is employed the longer 
+an attacker is exposed to attacks. While such exposure is traditionally associated with 
+the stability of the address, the usage type of the address may also have an impact on attack exposure (see <xref target="usage-type-considerations"/>).
+</t>
+
+
+<t>A popular approach to mitigate network activity correlation is the use of "temporary 
+addresses" <xref target="RFC4941"/>. Temporary addresses are typically auto-configured and 
+employed along with stable addresses, with the temporary addresses employed for outgoing 
+communications, and the stable addresses employed for incoming communications.
+
+<list style="hanging">
+<t hangText="NOTE:"><vspace blankLines="0"/>Ongoing work <xref target="I-D.ietf-6man-rfc4941bis"/> aims at updating 
+<xref target="RFC4941"/> such that temporary addresses can be employed without the 
+need to configure stable addresses.</t>
+</list>
+
+We note that the extent to which temporary addresses provide improved mitigation of 
+network activity correlation and/or reduced attack exposure may be questionable 
+and/or limited in some scenarios. For example, a temporary address that is reachable 
+for, say, a few hours has a questionable "reduced exposure" (particularly when 
+automated attack tools do not typically require such a long period of time to 
+complete their task). Similarly, if network activity can be correlated for the 
+life of such address (e.g., on the order of several hours), such period of time might 
+be long enough for the attacker to correlate all the network activity he is meaning 
+to correlate. However, they do introduce a limit to the attack window, and the amount of time during which address-based network activity correlation can be performed.
+</t>
+
+<t>
+In order to better mitigate network activity correlation and/or possibly reduce host 
+exposure, an implementation might want to either reduce the preferred lifetime of a 
+temporary address, or even better, generate one new temporary address for each new 
+transport protocol instance. However, the associated lifetime/stability of an address 
+may have a negative impact on the network (please see <xref target="operational-considerations"/>.
+</t>
+
+<t>Additionally, enforcing a maximum lifetime on IPv6 addresses may cause long-lived 
+TCP connections to fail. For example, an address becoming "Invalid" (after transitioning 
+through the "Preferred" and "Deprecated" states) would cause the TCP connections 
+employing them to break, which would in turn cause e.g. long-lived SSH sessions to break/fail.
+</t>
+
+<t>
+In some scenarios, attack exposure may be mitigated by limiting the usage of temporary 
+addresses to outgoing connections, and prevent such addresses from being used for 
+incoming connections (please see <xref target="usage-type-considerations"/>).
+</t>
+
+
+</section>
+
+
+
+
+</section> <!-- address considerations -->
+
+
+<section title="IPv6 Address Usage" anchor="ipv6-address-usage">
+<section title="Default Address Selection" anchor="default-address-selection">
+<t>
+Applications use system API's to select the IPv6 addresses that will be used
+for incoming and outgoing connections. These choices have consequences in terms
+of privacy, security, stability and performance.
+</t>
+<t>
+Default Address Selection for IPv6 is specified in <xref target="RFC6724" />. The
+selection starts with a set of potential destination addresses, such as 
+returned by getaddrinfo(), and the set of potential source addresses currently
+configured for the selected interfaces. For each potential destination address,
+the algorithm will select the source address that provides the best route to the 
+destination, while choosing the appropriate scope and preferring temporary addresses.
+The algorithm will then select the destination address, while giving a preference to
+reachable addresses with the smallest scope. The selection may be affected by system
+settings. We note that <xref target="RFC6724" /> only applies for outgoing connections, such
+as those made by clients trying to use services offered by other hosts.</t>
+
+<t>We note that <xref target="RFC6724"/> selects IPv6 addresses from all the currently available addresses on the host, and there is currently no way for an application to indicate expected or desirable properties for the IPv6 source addresses employed for such outgoing communications. For example, a privacy-sensitive application might want that each outgoing communication instance employs a new, single-use IPv6 address, or to employ a new reusable address that is not employed or reusable by any other application on the host. Reuse of an IPv6 address by an application would allow the correlation of all network activities corresponding to such application as being performed by the same host, while reuse of an IPv6 address by multiple different applications would allow the correlation of all such network activities as being performed by the host with such IPv6 address.</t>
+
+
+<t>
+When devices provide a service, the
+common pattern is to just wait for connections over all addresses configured on the 
+device. For example, applications using the BSD Sockets API will commonly bind() the listening 
+socket to the undefined address. This long-established behavior is appropriate
+for devices providing public services, but can have unexpected results for devices
+providing semi-private services, such as various forms of peer-to-peer or local-only
+applications.
+</t> 
+<t>
+This behavior leads to three problems: device tracking, discussed in 
+<xref target="deviceTracking"/>; unexpected address discovery, discussed in
+<xref target="unexpectedDisco"/>; and availability outside the expected scope,
+discussed in <xref target="availableOutside"/>. These problems are caused in part
+by the limitations of available address selection API, discussed in <xref target="limitedApi"/>.
+</t>
+
+</section> <!-- default address selection -->
+
+<section title="Usage Type Considerations" anchor="usage-type-considerations">
+<t>IPv6 hosts can both stable <xref target="RFC8064"/> and/or temporary <xref target="RFC4941"/> addresses, in which case stable addresses are typically employed for incoming (server-like) communications, while temporary addresses are employed for outgoing (client-like) communications. That is, the stability properties of an address have an implicitly associated usage type.
+</t>
+
+<t>
+A node that employs one of its addresses to communicate with an external server 
+(i.e., to perform an "outgoing connection") will expose that address to the other communicating system. For example, once the external server receives an incoming connection, 
+the corresponding server might launch an attack against the aforementioned address. 
+A real-world instance of this type of scenario has been documented in <xref target="Hein"/>.
+</t>
+
+<t>
+However, we note that employing an IPv6 address for outgoing communications need 
+not increase the exposure of local services to other parties. For example, nodes 
+could employ temporary addresses only for outgoing communications, and disallow their use for incoming 
+communications. Thus, external nodes that learn about a client's addresses could not really 
+leverage such addresses for actively contacting clients.
+</t>
+
+<t>
+<xref target="ipv6-address-usage"/> discusses current IPv6 address usage, along with possible improvements.</t>
+
+
+<!--
+<t>There are multiple ways in which this could possibly be achieved, with different 
+implications. Namely:
+<list style="symbols">
+<t>Run a host-based or network-based firewall</t>
+<t>Bind services to specific (explicit) addresses</t>
+<t>Bind services only to stable addresses</t>
+</list>
+</t>
+-->
+<!--
+<t>
+A client could simply run a host-based firewall that only allows incoming connections 
+on the stable addresses. This is clearly more of an operational way of achieving the 
+desired functionality, and may require good firewall/host integration (e.g., the firewall 
+should be able to tell stable vs. temporary addresses), may require the client to run 
+additional firewall software for this specific purpose, etc. In other scenarios, a 
+network-based firewall could be configured to allow outgoing communications from all 
+internal addresses, but only allow incoming communications to stable addresses (i.e., white-list such addresses either manually, or via a helper protocol such as <xref target="UPnP"/>). For 
+obvious reasons, this is generally only applicable to networks where incoming communications 
+are allowed to a limited number of hosts/servers.
+</t>
+-->
+<!--
+<t>Services could be bound to specific (explicit) addresses, rather than to all 
+locally-configured addresses. However, there are a number of short-comings associated 
+with this approach. Firstly, an application would need to be able to learn all of its 
+addresses and associated properties, something that tends to be non-trivial 
+and non-portable, and that also makes applications protocol-dependent, unnecessarily. 
+Secondly, the BSD Sockets API does not allow a socket to be bound to a subset of 
+the node's addresses. That is, sockets can be bound to a single address or to all 
+available addresses (wildcard), but not to a subset of all the configured addresses.
+</t>
+-->
+
+<!--
+<t>Binding services only to stable addresses provides a clean separation between addresses 
+employed for client-like outgoing comminications and server-like incoming communications. 
+However, we currently lack an appropriate API for nodes to be able to specify that a 
+socket should only be bound to stable addresses. 
+
+</t>
+-->
+</section>
+
+
+
+
+<section title="Current Alternatives for IPv6 Address Usage" anchor="approaches">
+
+
+<section title="Incoming communications" anchor="approach-incoming">
+<t>There are a number of ways in which a system or network may affect which addresses (and how) may be employed for different services and cases. Namely,
+
+<list style="symbols">
+<t>TCP/IP stack address filtering</t>
+<t>Application-based address filtering</t>
+<t>Firewall-based address filtering</t>
+</list>
+</t>
+
+<t>Clearly, the most elegant approach for address selection would be for applications to be able to specify the properties of the addresses they are 
+willing to employ by means of an API, such the TCP/IP stack itself could "filter" which addresses are allowed for the given service/application. For example, an application could specify the stability and scope properties of the addresses on which incoming communications should be accepted, such that the application can be relieved from dealing with low-level networking details, portability is improved, and duplicate code in applications is avoided. However, constraints in the current APIs (see <xref target="limitedApi"/>) limit the ability of application programmers for leveraging this technique. Alternatively, services could be bound to specific (explicit) addresses, rather than to all 
+locally-configured addresses. However, there are a number of short-comings associated 
+with this approach. Firstly, an application would need to be able to learn all of its 
+addresses and associated properties, something that tends to be non-trivial 
+and non-portable, and that also makes applications protocol-dependent, unnecessarily. 
+Secondly, the BSD Sockets API does not allow a socket to be bound to a subset of 
+the node's addresses. That is, sockets can be bound to a single address or to all 
+available addresses (wildcard), but not to a subset of all the configured addresses.
+</t>
+
+<t>Another possible approach would be for applications to e.g. bind services to all available addresses, and perform the associated selection/filtering at the application level. While possible, this would have a number of drawbacks. Firstly, it would require applications to deal with low-level networking details, lead to duplicated code in all applications, and also negatively affect portability. Secondly, performing address/selection filtering at the application level may not mitigate some possible attacks. For example, port scanning will still be possible, since the aforementioned filtering would only be performed once e.g. UDP packets are received or TCP connections are established.
+</t>
+
+<t>
+A client could simply run a host-based firewall that only allows incoming connections 
+on the stable addresses. This would be clearly more of an operational approach for achieving the 
+desired functionality, and would require good firewall/host integration (e.g., the firewall 
+should be able to tell stable vs. temporary addresses), would require the client to run 
+additional firewall software for this specific purpose, etc. In other scenarios, a 
+network-based firewall could be configured to allow outgoing communications from all 
+internal addresses, but only allow incoming communications to stable addresses (i.e., allow such addresses either manually, or via a helper protocol such as <xref target="UPnP"/>). For 
+obvious reasons, this is generally only applicable to networks where incoming communications 
+are allowed to a limited number of hosts/servers.
+</t>
+
+
+</section>
+
+<section title="Outgoing communications" anchor="approach-outgoing">
+<t>An application might be able to obtain the list of currently-configured addresses, and subsequently select an address with desired properties,  and explicitly "bind" the address to the socket, to override the default source address selection.</t>
+<t>However, this approach is problematic for a number of reasons. Firstly, there is no portable way of obtaining the list of currently-configured addresses on the local node, and even less to check for address properties such "valid lifetime". Secondly, as discussed in <xref target="approach-incoming"/>, it would require application programmers to understand all the subtleties associated with IPv6 addressing, and would also lead to duplicate code on all applications. Finally, applications would be limited to use already-configured addresses and unable to trigger the generation of new addresses where desirable (e.g. the generation of a new single-use address for this application instance or communication instance).</t>
+</section>
+
+</section> <!-- approaches -->
+
+</section>
+
+
+
+<section title="Current Issues" anchor="problem-statement">
+<!--
+<t>This section elaborates the problem statement on IPv6 address usage. <xref target="issues"/> describes the security and privacy implications of improper IPv6 address usage, while <xref target="limitedApi"/>, <xref target="advice-usage"/>, <xref target="advice-configuration"/>, analyze the possible root of such improper address usage, suggesting possible future work.</t>
+-->
+<section title="Sub-optimal IPv6 Address Usage" anchor="issues">
+
+<section title="Correlation of Network Activity"  anchor="correlation">
+
+<t>
+As discussed in <xref target="RFC7721"/>, a node that reuses an IPv6 address for multiple communication instances will enable the correlation of such network activities. This could be the case when the same IPv6 address is employed by several instances of the same application (e.g., a browser in "privacy" mode and a browser in "normal" mode), or when the same IPv6 address is employed by two different applications on the same node (e.g., a browser in "privacy" mode, and an email client).</t> 
+
+<t>Particularly for privacy-sensitive applications, an application or system might want to limit the usage of a given IPv6 address to a single communication instance, a single application, a single user on the system, etc. However, given current APIs, this is practically impossible.</t>
+</section>
+
+
+<section title="Passive Host Tracking"  anchor="deviceTracking">
+<!-- [fgont] 'Device tracking' is not the right term here... but still havent been able to come up with something better -->
+
+<t>
+The stable addresses recommended in <xref target="RFC8064" /> use stable IIDs defined
+in <xref target="RFC7217" />. One key part of that algorithm is that if a device
+connects to a given network at different times, it will always configure the
+same IPv6 addresses on that network. If the device hosts a service ready to 
+accept connections on that stable address, adversaries can test the presence of the 
+device on the network by attempting connections to that stable address. Stable addresses
+used by listening services will thus enable testing whether a specific device is
+returning to a particular network, which
+in a number of cases might be considered a privacy issue.
+
+
+</t> 
+</section>
+
+
+<section title="Unintended Service Disclosure" anchor="unexpectedDisco" >
+<t>
+Systems like DNS-Based Service Discovery <xref target="RFC6763" /> allow clients to 
+discover services within a limited scope, that can be defined by a domain name. These
+services are not advertised outside of that scope, and thus do not expect to be 
+discovered by random parties on the Internet. However, such services
+may be easily discoverable if they listen for connections to IPv6 addresses that 
+a client process also uses as source address when connecting to remote servers.
+<list style="hanging">
+<t hangText="NOTE:"><vspace blankLines="0"/>
+An example of such service disclosure is described in <xref target="Hein" />. A network 
+manager observed scanning traffic directed at the temporary addresses of local devices.
+The analysis in  <xref target="Hein" /> shows that the scanners learned the addresses by observing the device 
+contact an NTP service (<xref target="RFC5905" />). The remote scanning was possible
+because the local services were accepting connections on all configured addresses, including temporary
+addresses.
+</t>
+</list>
+</t>
+<t>
+It is obvious from this example that local services are disclosed because they are bond to the same IPv6 addresses that are also used by clients for outgoing communications with remote systems. But the overlap between "client" and "server" addresses is only one part of
+the problem. Suppose that a device hosts both a video game and a home automation 
+application. The video game users will be able to discover the IPv6 address of the
+game server. If the home automation server listens to the same IPv6 addresses, it 
+is now exposed to connection attempts by all these users. That, too, increases the
+exposure of the home automation server.
+</t>
+
+<t>We note that a host or network that wants to limit access to local services should filter incoming connection attempts by affecting address reachability (see <xref target="reachability"/>) via firewalls <xref target="I-D.gont-opsawg-firewalls-analysis"/> and/or the use of IPv6 addresses of appropriate scope (see <xref target="scope-considerations"/>). However, it is also prudent to avoid unintended service disclosure by suboptimal reuse of IPv6 addresses, as discussed in this section.
+</t>
+</section>
+
+<section title="Availability Outside the Expected Scope"  anchor="availableOutside">
+<t>
+The IPv6 addressing architecture <xref target='RFC4291' /> defines multiple address 
+scopes, with devices often configured with globally reachable 
+unicast addresses,
+link local addresses, and Unique Local IPv6 Unicast Addresses (ULA) 
+<xref target="RFC4193" />. Availability outside the expected scope happens when 
+a service is expected to be available only in some local scope, but inadvertently becomes
+available from outside of that scope. That could happen, for example, if a service is meant
+to be available only on a given link, but becomes reachable through ULA or through
+globally reachable addresses, or if a service is meant to be available only inside
+some organization's perimeter and becomes reachable through
+globally reachable addresses. This will commonly happen if a service intended for
+some local scope is programmed to bind() to the "unspecified" addresses, which in 
+practice means every address configured for the device (please see <xref target="limitedApi"/>).
+</t>
+</section>
+</section> <!-- issues with... -->
+
+
+
+<section title="Sub-optimal Address Configuration" anchor="configuration-considerations">
+
+<section title="Number of Addresses" anchor="address-mumber">
+
+<t>Two mechanisms exist for automatic network configuration: SLAAC and DHCPv6. DHCPv6 centralizes network configuration and address assignment, and may thus prevent hosts from leveraging the increased flexibility and availability of IPv6 addresses. On the other hand, SLAAC may also result in network configuration anarchy, where hosts may e.g. configure and use addresses in a way that may render the network virtually unusable (please see <xref target="implications-of-addresses"/>).</t>
+
+<t>Most of the challenges associated with the use of multiple addresses can be addressed by allocating one /64 per host via mechanisms such as DHCPv6-PD. However, support for such mechanisms in host implementations and e.g. the LAN-side of CE Routers is not widespread, and thus is currently unfeasible. On the other hand, SLAAC lacks the means for the network to convey information about e.g., the number of addresses per host the network is able or willing to support.
+</t>
+</section>
+
+<section title="SLAAC/DHCPv6 Interaction" anchor="interaction">
+<t>Many CE Routers offer address configuration via both SLAAC and DHCPv6, by including Prefix Information Options (PIOs) in Router Advertisement messages, and also setting the "M" such messages. This has a number of implications:
+<list style="symbols">
+<t>The outcome of the configuration process is non-deterministic, difficulting network troubleshooting (see <xref target="I-D.ietf-v6ops-dhcpv6-slaac-problem"/>).
+</t>
+<t>Nodes end up configuring more addresses than needed (or even used), normally configuring multiple stable addresses for each autoconfiguration prefix, with at least one address for each configuration mechanism (SLAAC and DHCPv6).
+</t>
+<t>A host can end up employing stable and predictable addresses resulting configured via DHCPv6, even when effort has been made to mitigate security and privacy issues associated with IPv6 addresses for the SLAAC-configured addresses (i.e., <xref target="RFC7217"/> and <xref target="RFC4941"/>).</t>
+
+</list>
+
+</t>
+</section>
+</section>
+
+<section title="Operation of Multi-Prefix/Multi-Address/Multi-Router Networks" anchor="operational-considerations">
+
+<section title="Implications of Addresses" anchor="implications-of-addresses">
+<!-- XXXX To be improved -->
+<t>Network deployments are currently recommended to provide multiple IPv6 addresses to general-purpose hosts <xref target="RFC7934"/>. However, in some scenarios, use of a large number of IPv6 addresses may have negative implications on network devices that need to maintain entries for each IPv6 address in network data structures (e.g., <xref target="RFC7039"/>). Additionally, concurrent active use of multiple IPv6 addresses will normally increase neighbour discovery traffic if Neighbour Caches in network devices are not large enough to store all addresses on the link. This can impact performance and energy efficiency on networks on which multicast is expensive (e.g. <xref target="I-D.ietf-mboned-ieee802-mcast-problems"/>). Finally, network devices may interpret the use of a number of addresses above a certain threshold as a security event, and block the offending device from using the network.</t>
+</section>
+
+
+<section title="Legitimate Network Activity Correlation">
+      <t>The desires of protecting individual privacy versus the
+      desire to effectively maintain and debug a network can
+      conflict with each other. For example, having clients use addresses that change over time will make it more difficult to track down
+      and isolate operational problems. For example, when looking
+      at packet traces, it could become more difficult to determine
+      whether one is seeing behavior caused by a single errant
+      machine, or by a number of them.</t>
+</section>
+
+<section title="Routing in Multi-Prefix/Multi-Router Networks">
+
+<t>If the network is provided with multiple upstreams via different routers, each of the upstream will provide its PA address space (see <xref target="dependency-considerations"/>) and local hosts will typically configure addresses for each of such prefixes. In this scenarios, packets sourced from a given prefix should only employ the local router that announced that prefix, since otherwise the packets might be dropped as a result of ingress/egress filtering <xref target="RFC2827"/>. Unfortunately, the traditional Neighbor Discovery <xref target="RFC4861"/> can advertise routes only with a per-destination granularity, irrespective of the source address/prefix.
+</t>
+
+<t><xref target="RFC8028"/> finally addressed the most important challenges associated with these scenarios. However, <xref target="RFC8028"/> is not widely implemented. As a result, operating a multi-prefix/multi-router IPv6 network represents a major challenge -- if at all possible.
+</t>
+</section>
+
+<section title="Renumbering">
+<t>The challenges posed by network renumbering have been known for a very long time <xref target="RFC5887"/>, with renumbering being analyzed with the assumption that the network topology remains stable and the network is renumbered.</t>
+
+<t>However, in scenarios where a host is moved to a different network without the host detecting the network disattach/re-attach event, or where the network a host attaches to is moved to a different point of the network topology, the aforementioned host will also perceive a renumbering event. In an era in which moving virtual machines, containers, and networks around a network topology is commonplace, and where mobile systems changing network connectivity to and from e.g. WiFi and 4G is also commonplace, renumbering events are anything but rare.</t>
+
+<t>One of the challenges represented by network renumbering is how hosts can infer that an existing network prefix and associated address(es) have become stale and should be removed and replaced by new prefixes and addresses. In scenarios where the network topology does not change and the network is renumbered, network elements may be aware about the renumbering event and signal this condition to attached systems (i.e., signal that existing network configuration information should be removed and replaced). However, in scenarios where it is the host, virtual machine or container (or the network they are attached to) that move around the network topology, the network will not be able to signal the "renumbering event", and the renumbered host, virtual machine, or container might or might not be able to detect the event (e.g., via link-down/link-up events).
+</t>
+
+
+<t>Unfortunately, both SLAAC and DHCPv6 assume network configuration information to be somewhat stable. SLAAC has traditionally employed long lifetimes for network configuration information, meaning that stale information could be employed for an unacceptably long period of time. DCHPv6 has traditionally suffered from the same problem but, in addition, there is no widespread support for RECONFIGURE messages, so even if the network were in a position to signal a renumbering event, in practice hosts would normally have to rely on expiration of lease times for stale information to be cleared up.
+</t>
+
+<t>Some of these problems have been discussed in detail in <xref target="I-D.ietf-v6ops-slaac-renum"/>, and there is ongoing work <xref target="I-D.ietf-6man-slaac-renum"/> <xref target="I-D.ietf-v6ops-cpe-slaac-renum"/> to mitigate their effects.
+</t>
+
+
+</section>
+
+
+</section>
+
+</section>
+
+<section title="Current Gaps that Prevent Leveraging IPv6 Addressing">
+
+
+<section title="Better Address Selection APIs" anchor="limitedApi" >
+<t>
+Application developers using the BSD Sockets API can "bind()" a listening socket to a specific
+address, and ensure that the application is only reachable through that address. In
+theory, careful selection of the binding address could mitigate the problems described in <xref target="issues"/>. Binding services to temporary addresses could mitigate the ability of an attacker from testing for the presence of the node in the network.
+Binding different services to different addresses could mitigate unexpected discovery.
+Binding services to non-global addresses (e.g. link-local addresses or ULAs) could mitigate availability outside the
+expected scope. However,
+explicitly managing addresses adds significant complexity to the application development.
+It requires that application developers master addressing architecture subtleties, and 
+implement logic that reacts adequately to connectivity events and address changes. 
+Experience shows that application developers would probably prefer some much simpler solution.
+</t>
+<t>
+In addition, we note that many application developers use high level APIs that
+listen to TLS, HTTP, or some other application protocol. These high level APIs seldomly
+provide detailed access to specific IP addresses, and typically default to listening
+to all available addresses.
+</t>
+
+<t>A more advanced API could allow application programmers to select desired properties in an address (scope, stability, etc.), such that the best-suitable addresses are selected, while relieving the application from low-level IPv6 addressing details. Such API could also trigger the generation of new IPv6 addresses if/when the specified properties required so.</t>
+
+</section> <!-- limited api -->
+
+<section title="Universal Support of Multi-prefix/Multi-router Networks" anchor="multi-networks">
+<t>To put it bluntly, multi-prefix/multi-router networks cannot possibly work properly without implementation of <xref target="RFC8028"/>. Unfortunately, <xref target="RFC8028"/> is not widely implemented. On the protocol standardization side, the IETF should consider elevating the requirement to support RFC8028 in the IPv6 Node Requirements RFC <xref target="RFC8504"/> from "SHOULD" to "MUST".
+</t>
+</section>
+
+
+<section title="Profile-based IPv6 Address Configuration" anchor="advice-configuration">
+<t>Most operating systems configure the same type of addresses regardless of the current "operating mode" or "profile" of the device (e.g., device connected to an enterprise network vs roaming across untrusted networks). For example, many operating systems configure both stable <xref target="RFC8064"/> and temporary <xref target="RFC4941"/> addresses for all network interfaces. However, this "one size fits all" approach tends to be sub-optimal or inappropriate for some scenarios. For example, enterprise networks typically prefer usage of only stable addresses, thus meaning that a network administrator needs to find the means for disabling the generation of temporary addresses on all those systems that would otherwise generate them. On the other hand, some mobile devices normally configure both stable and temporary addresses, even when their usage type (client-like operation) would allow for the more privacy-sensible option of configuring only temporary addresses.
+</t>
+
+<t>The lack of better-tuned address configuration policies has helped establish the "one size fits all" approach that, as noted, usually leads to suboptimal results. Advice in this area might help achieve more optional address configuration policies such that IPv6 addressing capabilities are fully leveraged.</t>
+
+<t>
+<list style="hanging">
+<t hangText="NOTE:"><vspace blankLines="0"/>
+One might envision a document that provides advice regarding the address generation for different typical scenarios (e.g., when to configure stable-only, temporary-only, or stable+temporary). In the most simple analysis, one might expect nodes in a typical enterprise network to employ only stable addresses. General-purpose nodes in a home or "trusted" network might want to employ both stable and temporary addresses. Finally, mobile nodes (e.g. when roaming across non-trusted networks) might want to employ only temporary addresses).
+</t>
+</list>
+</t>
+</section>
+
+<section title="Protocol Improvements to Deal with Many Addresses" anchor="slaac-improvements">
+<t>Possible improvements to IPv6 SLAAC should be evaluated, including:
+
+<list style="symbols">
+<t>Enabling IPv6 routers to convey information about network constraints such as maximum number of addressees per node</t>
+<t>Enabling hosts to register/de-register configured addresses, such that e.g. routers need not tie resources to addresses that are no longer used</t>
+</list>
+</t>
+
+<t>If a /64 prefix is to be assigned for each host in order to leverage IPv6 address availability while mitigating the possible effects on network elements of employing large numbers of addresses, widespread support for DHCPv6-PD (or some proposed alternative mechanism) should be considered.
+</t>
+
+
+</section>
+
+
+<section title="Support for Firewall Traversal in CE Routers" anchor="ce-routers">
+<t>Customer Edge Routers that implement a default filtering policy of "only allowing outgoing communications" need to support helper protocols such as <xref target="UPnP"/> so that applications can punch holes in the CE Router firewall for applications that need to receive incoming communications. Otherwise, P2P applications that currently work in IPv4 will not function properly in IPv6-only networks.</t>
+</section>
+
+
+
+
+<section title="Advice on IPv6 Address Usage" anchor="advice-usage">
+<t>An application programmer, left with the question of which are the most appropriate addresses for a given usage type and application, typically resorts to the Default IPv6 Address Selection for IPv6 (see <xref target="default-address-selection"/>) for outgoing communications, and to accepting incoming communications on all available addresses for incoming communications. As discussed throughout this document, this leads to sub-optimal results. Besides, all applications on a node share the same pool of configured addresses, and applications are also prevented from triggering the generation of new addresses (e.g. to be employed for a particular application or communication instance).</t>
+
+<t>Guidance in this area is warranted such that applications and systems fully-leverage IPv6 addressing.</t>
+
+
+<t>
+<list style="hanging">
+<t hangText="NOTE:"><vspace blankLines="0"/>
+Such guidance would elaborate, among other things, on the usage of IPv6 addresses when offering network services and when performing client-like communications. For example, for incoming communications, hosts might want to employ only the smallest-scope applicable addresses (if available) and, if stable addresses are available, they might want to accept incoming connections only on such addresses (but *not* on temporary addresses). For client-like communications, hosts might prefer temporary addresses, unless the corresponding communication instances are expected to be long-lived (e.g., SSH sessions).</t>
+</list>
+</t>
+</section>
+
+</section>
+
+	<section title="IANA Considerations" anchor="iana-considerations">
+<t>There are no IANA registries within this document. The RFC-Editor can remove this section before publication of this document as an RFC.</t>
+</section>
+
+    <section title="Security Considerations">
+<t>The security and privacy implications associated with the predictability and lifetime of IPv6 addresses has been analyzed in <xref target="RFC7217"/> <xref target="RFC7721"/>, and <xref target="RFC7707"/>. This document complements and extends the aforementioned analysis by considering other IPv6 properties such as the address scope and address reachability, and the associated trade-offs.<!-- Finally, it describes possible future standards-track work to allow for greater flexibility in IPv6 address usage. --></t>
+
+    </section>
+
+    <section title="Acknowledgements">
+<t>The authors would like to thank (in alphabetical order) Fred Baker, Francis Dupont, Tatuya Jinmei, and Dave Thaler for providing valuable comments on earlier versions of this document.</t>
+
+</section>
+
+
+  </middle>
+
+  <back>
+  <references title='Normative References'>
+<!--
+	<?rfc include="reference.RFC.2460" ?>
+-->
+	<?rfc include="reference.RFC.2119" ?>
+	<?rfc include="reference.RFC.2827" ?>
+	<?rfc include="reference.RFC.4007" ?>
+	<?rfc include="reference.RFC.4193" ?>
+	<?rfc include="reference.RFC.4291" ?>
+	<?rfc include="reference.RFC.4861" ?>
+	<?rfc include="reference.RFC.4862" ?>
+	<?rfc include="reference.RFC.4941" ?>
+	<?rfc include="reference.RFC.5905" ?>
+	<?rfc include="reference.RFC.6724" ?>
+	<?rfc include="reference.RFC.6763" ?>
+	<?rfc include="reference.RFC.7217" ?>
+	<?rfc include="reference.RFC.8028" ?>
+	<?rfc include="reference.RFC.8064" ?>
+	<?rfc include="reference.RFC.7934" ?>
+	<?rfc include="reference.RFC.8174" ?>
+	<?rfc include="reference.RFC.8415" ?>
+	<?rfc include="reference.RFC.8504" ?>
+  </references>
+
+  <references title='Informative References'>
+
+<!-- Problems with multiple addresses -->
+	<?rfc include="reference.I-D.ietf-mboned-ieee802-mcast-problems" ?>
+	<?rfc include="reference.I-D.ietf-6man-rfc4941bis" ?>
+	<?rfc include="reference.I-D.ietf-6man-slaac-renum" ?>
+	<?rfc include="reference.I-D.ietf-v6ops-slaac-renum" ?>
+	<?rfc include="reference.I-D.ietf-v6ops-cpe-slaac-renum" ?>
+	
+	<?rfc include="reference.RFC.5887" ?>
+	<?rfc include="reference.RFC.6296" ?>
+	<?rfc include="reference.RFC.7039" ?>
+
+	<?rfc include="reference.RFC.7707" ?>
+	<?rfc include="reference.RFC.7721" ?>
+
+	<?rfc include="reference.RFC.8190" ?>
+
+	<?rfc include="reference.I-D.ietf-v6ops-ula-usage-considerations" ?>
+
+
+	<?rfc include="reference.I-D.gont-opsawg-firewalls-analysis" ?>
+	<?rfc include="reference.I-D.ietf-v6ops-dhcpv6-slaac-problem" ?>
+
+
+
+
+      <reference anchor="Barnes2012" target="https://www.caida.org/workshops/isma/1202/slides/aims1202_rbarnes.pdf">
+        <front>
+          <title>Mapping the Great Void Smarter scanning for IPv6</title>
+
+          <author fullname="Richard Barnes" initials="R." surname="Barnes">
+          </author>
+
+
+          <author fullname="Rick Altmann" initials="R." surname="Altmann">
+          </author>
+
+
+
+          <author fullname="Daniel Kerr" initials="D." surname="Kerr">
+          </author>
+
+
+          <date/>
+        </front>
+
+        <seriesInfo name=""
+                    value="ISMA 2012 AIMS-4 - Workshop on Active Internet Measurements, February 2012"/>
+      </reference>
+
+
+
+      <reference anchor="UPnP" target="https://openconnectivity.org/upnp-specs/UPnP-arch-DeviceArchitecture-v2.0-20200417.pdf">
+        <front>
+          <title>UPnP Device Architecture 2.0</title>
+
+          <author fullname="UPnP" initials="" surname="UPnP">
+          </author>
+
+          <date/>
+        </front>
+
+        <seriesInfo name=""
+                    value="April 17, 2020"/>
+      </reference>
+
+      <reference anchor="Hein" target="http://netpatterns.blogspot.be/2016/01/the-rising-sophistication-of-network.html">
+        <front>
+          <title>The Rising Sophistication of Network Scanning</title>
+
+          <author fullname="Brad Hein" initials="B." surname="Hein">
+          </author>
+
+          <date/>
+        </front>
+
+        <seriesInfo name=""
+                    value="January 2016"/>
+      </reference>
+
+</references>
+
+  </back>
+
+</rfc>
